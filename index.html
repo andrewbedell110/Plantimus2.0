@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1024">
+  <title>Plantimus 2.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div id="app">
+
+    <!-- LEFT PANEL: Plantimus -->
+    <div id="plant-panel">
+      <div id="plant-container">
+        <img id="plant-img" src="GIF/plant_breathing.gif" alt="Plantimus">
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: Weather or Chat -->
+    <div id="right-panel">
+
+      <!-- Weather Panel (default) -->
+      <div id="weather-panel" class="panel">
+        <div class="panel-header">
+          <span class="header-title">Plantimus Weather Station</span>
+          <span id="clock" class="header-clock"></span>
+        </div>
+        <div id="weather-content" class="panel-body">
+          <div class="loading-msg">Fetching weather data...</div>
+        </div>
+      </div>
+
+      <!-- Chat Panel (shown on wake word) -->
+      <div id="chat-panel" class="panel hidden">
+        <div class="panel-header">
+          <span class="header-title">Plantimus AI</span>
+          <span id="chat-status-dot" class="status-dot idle"></span>
+        </div>
+        <div id="chat-messages" class="panel-body"></div>
+        <div id="chat-footer">
+          <span id="chat-hint">Say "Hey Plantimus" to chat</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Voice Enable Overlay (shown on load) -->
+  <div id="voice-overlay">
+    <div id="voice-card">
+      <img src="GIF/plant_breathing.gif" alt="Plantimus" id="overlay-plant">
+      <h1>Hello, I'm Plantimus!</h1>
+      <p>Your friendly plant companion.<br>Tap below to enable voice and start chatting!</p>
+      <button id="enable-btn">Wake Up Plantimus</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
