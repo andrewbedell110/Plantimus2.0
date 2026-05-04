@@ -428,8 +428,9 @@ async function processQuery(userText) {
 // SPEECH RECOGNITION
 // ==========================================
 
-let continuousRec        = null;
-let isListeningForWake   = false;
+let continuousRec      = null;
+let isListeningForWake = false;
+let wakeSessionId      = 0;   // incremented each time a new session is created
 
 function startContinuousListening() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -438,56 +439,65 @@ function startContinuousListening() {
     return;
   }
 
-  // Clean up any existing session
-  if (continuousRec) {
-    try { continuousRec.abort(); } catch (_) {}
-    continuousRec = null;
+  // Null out before aborting so the old session's onend/onerror callbacks
+  // can detect they are stale and skip the restart logic.
+  const prev = continuousRec;
+  continuousRec = null;
+  if (prev) {
+    try { prev.abort(); } catch (_) {}
   }
 
-  isListeningForWake = true;
-  continuousRec = new SR();
-  // NOTE: continuous:true is unreliable in Chrome — the mic opens but
-  // onresult never fires. The fix is continuous:false + restart in onend,
-  // which Chrome handles correctly and effectively simulates always-on listening.
-  continuousRec.continuous      = false;
-  continuousRec.interimResults  = false;  // final results only for wake word
-  continuousRec.lang            = 'en-US';
-  continuousRec.maxAlternatives = 3;      // get Chrome's top 3 guesses
+  if (!isListeningForWake) return;
 
-  continuousRec.onstart = () => {
+  // Each session gets a unique ID captured in the closure.
+  // Only the session whose ID still matches wakeSessionId may restart.
+  const myId = ++wakeSessionId;
+
+  const rec = new SR();
+  continuousRec = rec;
+
+  // NOTE: continuous:false is used because Chrome's continuous:true mode
+  // opens the mic but never fires onresult. We simulate always-on by
+  // restarting in onend instead.
+  rec.continuous      = false;
+  rec.interimResults  = false;
+  rec.lang            = 'en-US';
+  rec.maxAlternatives = 3;
+
+  rec.onstart = () => {
     console.log('[Plantimus] Listening for wake word...');
   };
 
-  continuousRec.onresult = (event) => {
-    // Check all result alternatives for the wake phrase
+  rec.onresult = (event) => {
     for (let i = 0; i < event.results.length; i++) {
       for (let j = 0; j < event.results[i].length; j++) {
         const transcript = event.results[i][j].transcript.toLowerCase().trim();
         console.log('[Plantimus] Heard:', transcript);
         if (
-          transcript.includes('hey plantimus')   ||
-          transcript.includes('plantimus')        ||
-          transcript.includes('plant imus')       ||
-          transcript.includes('plantes')          ||
-          transcript.includes('plan times')       ||
-          transcript.includes('plant us')         ||
-          transcript.includes('hey plant')        ||
-          transcript.includes("hey plants emma's")||
-          transcript.includes('hey princess')     ||
-          transcript.includes('hey plans ms')     ||
-          transcript.includes('hey planz ms')     ||
-          transcript.includes('hey plants ms')    ||
+          transcript.includes('hey plantimus')      ||
+          transcript.includes('plantimus')           ||
+          transcript.includes('plant imus')          ||
+          transcript.includes('plantes')             ||
+          transcript.includes('plan times')          ||
+          transcript.includes('plant us')            ||
+          transcript.includes('hey plant')           ||
+          transcript.includes("hey plants emma's")   ||
+          transcript.includes('hey princess')        ||
+          transcript.includes('hey plans ms')        ||
+          transcript.includes('hey planz ms')        ||
+          transcript.includes('hey plants ms')       ||
           transcript.includes('keep playing thomas') ||
           transcript.includes('keep playing tomas')  ||
           transcript.includes('keep playing to us')  ||
-          transcript.includes('hey plan')         ||
-          transcript.includes('hey platanus')     ||
-          transcript.includes('hey platinous')    ||
-          transcript.includes('hey platinum is')  ||
+          transcript.includes('hey plan')            ||
+          transcript.includes('hey platanus')        ||
+          transcript.includes('hey platinous')       ||
+          transcript.includes('hey platinum is')     ||
           transcript.includes('platinus')
         ) {
           isListeningForWake = false;
-          try { continuousRec.stop(); } catch (_) {}
+          if (continuousRec === rec) continuousRec = null;
+          try { rec.stop(); } catch (_) {}
           handleWakeWord();
           return;
         }
@@ -495,29 +505,30 @@ function startContinuousListening() {
     }
   };
 
-  // Restart immediately after each utterance — this is the reliable
-  // alternative to continuous:true for always-on wake word detection
-  continuousRec.onend = () => {
-    if (isListeningForWake) {
+  // onend is the ONLY place restart logic lives.
+  // After an error, Chrome always fires onend — so we don't also restart
+  // in onerror, which was causing the double-restart loop.
+  rec.onend = () => {
+    // Prevent the global ref from pointing to a dead session
+    if (continuousRec === rec) continuousRec = null;
+
+    // Only restart if this is still the active session
+    if (isListeningForWake && wakeSessionId === myId) {
       setTimeout(() => {
-        if (isListeningForWake) startContinuousListening();
-      }, 100);
+        if (isListeningForWake && wakeSessionId === myId) startContinuousListening();
+      }, 350);  // 350ms lets Chrome fully tear down before a new session opens
     }
   };
 
-  continuousRec.onerror = (event) => {
-    console.log('[Plantimus] Recognition error:', event.error);
+  rec.onerror = (event) => {
+    if (event.error !== 'aborted' && event.error !== 'no-speech') {
+      console.log('[Plantimus] Recognition error:', event.error);
+    }
     if (event.error === 'not-allowed') {
-      // Permission was revoked — clear stored flag and re-show the overlay
       localStorage.removeItem('plantimus_mic');
       voiceOverlay.style.display = 'flex';
-      return;
     }
-    if (event.error !== 'aborted' && isListeningForWake) {
-      setTimeout(() => {
-        if (isListeningForWake) startContinuousListening();
-      }, 600);
-    }
+    // All other errors: onend fires next and handles the restart.
   };
 
   try {
