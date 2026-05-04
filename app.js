@@ -465,13 +465,26 @@ function startContinuousListening() {
         const transcript = event.results[i][j].transcript.toLowerCase().trim();
         console.log('[Plantimus] Heard:', transcript);
         if (
-          transcript.includes('hey plantimus') ||
-          transcript.includes('plantimus')     ||
-          transcript.includes('plant imus')    ||
-          transcript.includes('plantes')       ||
-          transcript.includes('plan times')    ||
-          transcript.includes('plant us')      ||
-          transcript.includes('hey plant')
+          transcript.includes('hey plantimus')   ||
+          transcript.includes('plantimus')        ||
+          transcript.includes('plant imus')       ||
+          transcript.includes('plantes')          ||
+          transcript.includes('plan times')       ||
+          transcript.includes('plant us')         ||
+          transcript.includes('hey plant')        ||
+          transcript.includes("hey plants emma's")||
+          transcript.includes('hey princess')     ||
+          transcript.includes('hey plans ms')     ||
+          transcript.includes('hey planz ms')     ||
+          transcript.includes('hey plants ms')    ||
+          transcript.includes('keep playing thomas') ||
+          transcript.includes('keep playing tomas')  ||
+          transcript.includes('keep playing to us')  ||
+          transcript.includes('hey plan')         ||
+          transcript.includes('hey platanus')     ||
+          transcript.includes('hey platinous')    ||
+          transcript.includes('hey platinum is')  ||
+          transcript.includes('platinus')
         ) {
           isListeningForWake = false;
           try { continuousRec.stop(); } catch (_) {}
