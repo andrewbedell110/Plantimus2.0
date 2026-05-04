@@ -446,48 +446,58 @@ function startContinuousListening() {
 
   isListeningForWake = true;
   continuousRec = new SR();
-  continuousRec.continuous      = true;
-  continuousRec.interimResults  = true;
+  // NOTE: continuous:true is unreliable in Chrome — the mic opens but
+  // onresult never fires. The fix is continuous:false + restart in onend,
+  // which Chrome handles correctly and effectively simulates always-on listening.
+  continuousRec.continuous      = false;
+  continuousRec.interimResults  = false;  // final results only for wake word
   continuousRec.lang            = 'en-US';
-  continuousRec.maxAlternatives = 1;
+  continuousRec.maxAlternatives = 3;      // get Chrome's top 3 guesses
+
+  continuousRec.onstart = () => {
+    console.log('[Plantimus] Listening for wake word...');
+  };
 
   continuousRec.onresult = (event) => {
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const transcript = event.results[i][0].transcript.toLowerCase().trim();
-      // Accept many likely mis-transcriptions of "Hey Plantimus"
-      // (Chrome doesn't know this word, so it guesses phonetically)
-      if (
-        transcript.includes('hey plantimus') ||
-        transcript.includes('plantimus')     ||
-        transcript.includes('plant imus')    ||
-        transcript.includes('plantes')       ||
-        transcript.includes('plan times')    ||
-        transcript.includes('plant us')      ||
-        transcript.includes('hey plant')
-      ) {
-        isListeningForWake = false;
-        try { continuousRec.stop(); } catch (_) {}
-        handleWakeWord();
-        return;
+    // Check all result alternatives for the wake phrase
+    for (let i = 0; i < event.results.length; i++) {
+      for (let j = 0; j < event.results[i].length; j++) {
+        const transcript = event.results[i][j].transcript.toLowerCase().trim();
+        console.log('[Plantimus] Heard:', transcript);
+        if (
+          transcript.includes('hey plantimus') ||
+          transcript.includes('plantimus')     ||
+          transcript.includes('plant imus')    ||
+          transcript.includes('plantes')       ||
+          transcript.includes('plan times')    ||
+          transcript.includes('plant us')      ||
+          transcript.includes('hey plant')
+        ) {
+          isListeningForWake = false;
+          try { continuousRec.stop(); } catch (_) {}
+          handleWakeWord();
+          return;
+        }
       }
     }
   };
 
-  // Chrome stops continuous recognition after silence; restart automatically
+  // Restart immediately after each utterance — this is the reliable
+  // alternative to continuous:true for always-on wake word detection
   continuousRec.onend = () => {
     if (isListeningForWake) {
       setTimeout(() => {
         if (isListeningForWake) startContinuousListening();
-      }, 250);
+      }, 100);
     }
   };
 
   continuousRec.onerror = (event) => {
+    console.log('[Plantimus] Recognition error:', event.error);
     if (event.error === 'not-allowed') {
       // Permission was revoked — clear stored flag and re-show the overlay
       localStorage.removeItem('plantimus_mic');
       voiceOverlay.style.display = 'flex';
-      console.error('Microphone permission denied.');
       return;
     }
     if (event.error !== 'aborted' && isListeningForWake) {
