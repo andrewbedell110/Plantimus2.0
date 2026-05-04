@@ -88,22 +88,19 @@ function unixToMDT(unix) {
 }
 
 // Get current MDT hour (0–23)
+// Date.now() is always UTC ms; subtract 6h to get MDT, then read UTC fields.
 function getMDTHour() {
-  const now   = new Date();
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
-  return new Date(utcMs - 6 * 3600000).getUTCHours();
+  return new Date(Date.now() - 6 * 3600000).getUTCHours();
 }
 
 // Get current MDT time as "H:MM:SS AM/PM MDT"
 function getMDTTimeStr() {
-  const now   = new Date();
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
-  const d     = new Date(utcMs - 6 * 3600000);
-  const h     = d.getUTCHours();
-  const m     = d.getUTCMinutes().toString().padStart(2, '0');
-  const s     = d.getUTCSeconds().toString().padStart(2, '0');
-  const ampm  = h >= 12 ? 'PM' : 'AM';
-  const h12   = h % 12 || 12;
+  const d    = new Date(Date.now() - 6 * 3600000);
+  const h    = d.getUTCHours();
+  const m    = d.getUTCMinutes().toString().padStart(2, '0');
+  const s    = d.getUTCSeconds().toString().padStart(2, '0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12  = h % 12 || 12;
   return `${h12}:${m}:${s} ${ampm}`;
 }
 
@@ -164,11 +161,9 @@ function playRandomAnimation() {
 
 // Check every second; fire animation at a randomly-chosen second within each minute
 setInterval(() => {
-  const now   = new Date();
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
-  const d     = new Date(utcMs - 6 * 3600000);
-  const min   = d.getUTCMinutes();
-  const sec   = d.getUTCSeconds();
+  const d   = new Date(Date.now() - 6 * 3600000);
+  const min = d.getUTCMinutes();
+  const sec = d.getUTCSeconds();
 
   // Pick a new random second whenever the minute rolls over
   if (min !== randAnimMinute) {
@@ -459,10 +454,15 @@ function startContinuousListening() {
   continuousRec.onresult = (event) => {
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const transcript = event.results[i][0].transcript.toLowerCase().trim();
-      // Accept several likely transcriptions of the wake phrase
+      // Accept many likely mis-transcriptions of "Hey Plantimus"
+      // (Chrome doesn't know this word, so it guesses phonetically)
       if (
         transcript.includes('hey plantimus') ||
         transcript.includes('plantimus')     ||
+        transcript.includes('plant imus')    ||
+        transcript.includes('plantes')       ||
+        transcript.includes('plan times')    ||
+        transcript.includes('plant us')      ||
         transcript.includes('hey plant')
       ) {
         isListeningForWake = false;
@@ -484,6 +484,9 @@ function startContinuousListening() {
 
   continuousRec.onerror = (event) => {
     if (event.error === 'not-allowed') {
+      // Permission was revoked — clear stored flag and re-show the overlay
+      localStorage.removeItem('plantimus_mic');
+      voiceOverlay.style.display = 'flex';
       console.error('Microphone permission denied.');
       return;
     }
@@ -594,9 +597,17 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchWeather();
   setInterval(fetchWeather, 10 * 60 * 1000);
 
-  // Voice overlay button — one-time click to grant mic and start listening
+  // Voice overlay button — grants mic on first use, saves flag to localStorage
   enableBtn.addEventListener('click', () => {
+    localStorage.setItem('plantimus_mic', 'true');
     voiceOverlay.style.display = 'none';
     startContinuousListening();
   });
+
+  // If mic was already granted in a previous session, skip the overlay entirely.
+  // Chrome remembers mic permission per HTTPS origin, so no gesture is needed.
+  if (localStorage.getItem('plantimus_mic') === 'true') {
+    voiceOverlay.style.display = 'none';
+    startContinuousListening();
+  }
 });
